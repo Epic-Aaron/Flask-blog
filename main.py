@@ -8,10 +8,14 @@ from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.orm import relationship
 from flask_login import UserMixin, login_user, LoginManager, login_required, current_user, logout_user
 from functools import wraps
+from dotenv import load_dotenv
+import os
+from datetime import datetime
 
+load_dotenv()
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = '8BYkEfBA6O6donzWlSihBXox7C0sKR6b'
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY')
 ckeditor = CKEditor(app)
 Bootstrap(app)
 
@@ -38,7 +42,11 @@ class BlogPost(db.Model):
     body = db.Column(db.Text, nullable=False)
     img_url = db.Column(db.String(250), nullable=False)
 
-    comments = relationship("Comment", back_populates="parent_post")
+    comments = relationship(
+        "Comment",
+        back_populates="parent_post",
+        cascade="all, delete"
+    )
 
 class User(UserMixin, db.Model):
     __tablename__ = "users"
@@ -47,8 +55,18 @@ class User(UserMixin, db.Model):
     password = db.Column(db.String(100))
     name = db.Column(db.String(100))
 
-    posts = relationship("BlogPost", back_populates="author")
-    comments = relationship("Comment", back_populates="comment_author")
+    posts = relationship(
+        "BlogPost",
+        back_populates="author",
+        cascade="all, delete"
+    )
+
+    comments = relationship(
+        "Comment",
+        back_populates="comment_author",
+        cascade="all, delete"
+    )
+
 
 class Comment(db.Model):
     __tablename__ = "comments"
@@ -67,8 +85,7 @@ class Comment(db.Model):
 def admin_only(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
-
-        if current_user.id != 1:
+        if not current_user.is_authenticated or current_user.id != 1:
             return abort(403)
 
         return f(*args, **kwargs)
@@ -77,12 +94,13 @@ def admin_only(f):
 
 @login_manager.user_loader
 def load_user(user_id):
-    return db.session.get(User, int(user_id))
+    return User.query.get(int(user_id))
 
 @app.route('/')
 def get_all_posts():
+    current_year = datetime.now().year
     posts = BlogPost.query.all()
-    return render_template("index.html", all_posts=posts)
+    return render_template("index.html", all_posts=posts, year=current_year)
 
 @app.route('/register', methods=["GET", "POST"])
 def register():
@@ -151,7 +169,7 @@ def logout():
 @app.route("/post/<int:post_id>", methods=["GET", "POST"])
 def show_post(post_id):
 
-    requested_post = db.session.get(BlogPost, post_id)
+    requested_post = BlogPost.query.get(post_id)
 
     comment_form = CommentForm()
 
@@ -235,7 +253,7 @@ def edit_post(post_id):
 @login_required
 @admin_only
 def delete_post(post_id):
-    post_to_delete = db.session.get(BlogPost, post_id)
+    post_to_delete = BlogPost.query.get(post_id)
     db.session.delete(post_to_delete)
     db.session.commit()
     return redirect(url_for('get_all_posts'))
@@ -246,4 +264,4 @@ if __name__ == "__main__":
     with app.app_context():
         db.create_all()
 
-    app.run(host='0.0.0.0', port=5000,debug=True)
+    app.run(debug=True)

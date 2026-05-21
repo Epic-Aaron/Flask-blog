@@ -483,3 +483,13 @@ footer .copyright {
   font-size: 16px;
   padding: 25px 35px;
 }
+
+.white-label{
+    color: white !important;
+}
+
+.custom-input{
+    width: 70% !important;
+    height: 50px !important;
+    border-radius: 10px;
+}
